@@ -9,6 +9,12 @@ namespace Drupal\multisite_easy_commands\Commands;
 
 use Drush\Commands\DrushCommands;
 use Drupal\Core\Site\Settings;
+
+use Symfony\Component\Console\Helper\QuestionHelper;
+use Symfony\Component\Console\Question\ChoiceQuestion;
+
+use Symfony\Component\Console\Helper\Table;
+use Symfony\Component\Console\Output\ConsoleOutput;
 /**
  * A Drush commandfile.
  *
@@ -26,12 +32,12 @@ class MultiSiteEasyCommands extends DrushCommands {
    * @aliases ccepm, cce-print-me
    */
 
-  public function printMe($arg1 = 'hello world', $options = ['uppercase' => FALSE]) {
+  public function multiSiteEasyCommands($arg1 = 'hello world', $options = ['uppercase' => FALSE]) {
     if ($options['uppercase']) {
       $arg1 = strtoupper($arg1);
     }
     $this->output()->writeln($arg1);
-    
+    $helper = new QuestionHelper();
     
     $sites = [];
     
@@ -43,11 +49,22 @@ class MultiSiteEasyCommands extends DrushCommands {
       include_once $sites_path;
     }
     global $sites;
-    print_r($sites);
-    // Loop through each site and get its trusted host patterns.
-    foreach ($sites as $site_name => $site_info) {
-      $this->output()->writeln($site_name);
+
+    // Printing Site options for user to select
+    $keys = array_keys($sites);
+    $table = new Table(new ConsoleOutput());
+    $table->setHeaders(['#', 'Site URL', 'Site Name']);
+    foreach ($keys as $index => $key) {
+      // var_dump($index, $option);
+      $value = $sites[$key];
+      $table->addRow([$index + 1, $key, $value]);
     }
+    $table->render();
+
+    $selectedOptionIndex = $this->io()->ask('Enter the number of your choice:');
+    $selectedOption = $keys[$selectedOptionIndex - 1];
+
+    $this->output()->writeln("<info>You selected:</info> $selectedOption");
   }
   
 }
