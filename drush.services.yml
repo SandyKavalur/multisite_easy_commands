@@ -1,0 +1,6 @@
+services:
+  multisite_easy_commands.commands:
+    class: \Drupal\multisite_easy_commands\Commands\MultiSiteEasyCommands
+    tags:
+      - { name: drush.command }
+    arguments: ['@entity_type.manager', '@logger.factory']
