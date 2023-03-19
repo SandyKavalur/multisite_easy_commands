@@ -5,3 +5,4 @@ tools:
     path: /usr/local/bin/lando
   terminus:
     path: /usr/local/bin/terminus
+my_input: 'yo yo yo'
