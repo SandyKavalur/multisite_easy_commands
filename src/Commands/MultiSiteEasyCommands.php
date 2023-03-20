@@ -64,24 +64,43 @@ class MultiSiteEasyCommands extends DrushCommands {
    *   Use quotes to pass an array of parameters.
    * @option save Key value option description.
    * @option clear Key value option description.
-   * @option opt A comma-separated list of key-value pairs.
+   * @option opts A comma-separated list of key-value pairs.
    *   Use quotes to pass an array of options.
-   *   Example: --opt="url=https://example.com,foo=bar,baz=qux"
+   *   Example: --opts="uri=https://example.com,foo=bar,baz=qux"
+   * @option opt A comma-separated list of key-value pairs.
+   *   Example: --opt=foo=bar --opt=baz=qux
    *
    * @validate-module-enabled multisite_easy_commands
    * @usage mycommand "[<params>]" [--<opt>=<key>=<value>]...
    * @bootstrap full
    */
-  public function multiSiteEasyCommands($params = '', $options = ['opt' => []]) {
-    // drush msl "cr" --opt="url=http://example.com,foo=bar,baz=qux"
-    if($options['opt'] !== NULL){
+  public function multiSiteEasyCommands($params = '', $options = ['opt' => [], 'opts' => '']) {
+    $this->output()->writeln(
+      "<options=bold>\nIf you are using commands like '$' and '-r, -d, -v, etc'. 
+      Please add '\' before '-' and '$'.
+      Eg: drush msl '\-r /var/www/html status'</>");
+    // drush msl "cr" --opt="uri=http://example.com,foo=bar,baz=qux"
+    
+    $optionValues = '';
+    
+    $params = stripslashes($params);
+    $set_drush_command = "drush " . $params;
+
+    if(!empty($options['opts'])){
+      $getOptsCmds = explode(',', $options['opts']);
+      $options['opt'] = array_merge($options['opt'], $getOptsCmds);
+    }
+
+    if(!empty($options['opt'])){
       $optionPairs = $options['opt'];
-      $optionValues = [];
       foreach ($optionPairs as $optionPair) {
-        list($optionName, $optionValue) = explode('=', $optionPair, 2);
-        $optionValues[$optionName] = $optionValue;
+        if (str_contains($optionPair, '=')) {
+          list($optionName, $optionValue) = explode('=', $optionPair, 2);
+          $optionValues .= '--' . $optionName . '=' . $optionValue . ' ';
+        } else {
+          $optionValues .= '--' . $optionPair . ' ';
+        }
       }
-      var_dump($optionValues);
     }
 
     // $pathToMyModule = \Drupal::service('extension.list.module')->getPath('multisite_easy_commands');
@@ -98,16 +117,16 @@ class MultiSiteEasyCommands extends DrushCommands {
     // file_put_contents($pathToMyModule, $yaml);
 
     if (str_contains($params, '-l')) {
-      $this->output()->writeln("<comment>Found '-l' in command, not modifying command. 
+      $this->output()->writeln("<comment>\nFound '-l' in command, not modifying command. 
       Please remove it to select from list of sites</comment>");
-      passthru($params);
+      passthru($set_drush_command);
     } elseif (str_contains($params, '--uri')) {
-      $this->output()->writeln("<comment>Found '--uri' in command, not modifying command.
+      $this->output()->writeln("<comment>\nFound '--uri' in command, not modifying command.
       Please remove it to select from list of sites</comment>");
-      passthru($params);
+      passthru($set_drush_command);
     } else {
       // Fetch Sites from sites.php and config data
-      $sites = multiSiteEasyCommands::fetchSites($sites_copyfile_path);
+      $sites = MultiSiteEasyCommands::fetchSites($sites_copyfile_path);
       
       if($options['clear']) {
         \Drupal::state()->delete('persist_url');
@@ -115,28 +134,22 @@ class MultiSiteEasyCommands extends DrushCommands {
 
       $persist_url = \Drupal::state()->get('persist_url', null);
       if ($persist_url !== NULL){
-        $param_array = explode(' ', $params);
-        // $command = "drush " . $params;
-        $command = "drush ";
-        foreach ($param_array as $index => $key) {
-          $command .= $key . ' ';
-        }
-        $command .= "--uri=" . $persist_url;
-        $this->output()->writeln("<comment>Use --clear to clear memory and select different URL.</comment>");
+        $set_drush_command .= " --uri=" . $persist_url;
+        $this->output()->writeln("<comment>\nUse --clear to clear memory and select different URL.</comment>");
       } else {
-        $command = multiSiteEasyCommands::selectSiteFromList($sites, $params, $options);
+        $set_drush_command = MultiSiteEasyCommands::selectSiteFromList($sites, $set_drush_command, $options);
       }
+      $set_drush_command .= ' ' . $optionValues;
+      $this->output()->writeln("<info>Running drush command:</info> $set_drush_command \n");
       // IMPORTANT: DO NOT REMOVE BELOW LINE
-      passthru($command);
+      passthru($set_drush_command);
     }
 
   }
 
   public function fetchSites($sites_copyfile_path) {
-    if (!is_readable($sites_path)) {
-      $this->output()->writeln("<comment>If sites present in your root_DIR/sites/sites.php and are not shown here, 
-      please check file access permission.</comment>");
-    }
+    $this->output()->writeln("<comment>\nIf sites present in your root_DIR/sites/sites.php and are not shown here, 
+    please check file access permission.</comment>");
     $sites_path = DRUPAL_ROOT . '/sites/sites.php';
     if (file_exists($sites_path)) {
       $contents = file_get_contents($sites_path);
@@ -153,47 +166,52 @@ class MultiSiteEasyCommands extends DrushCommands {
     return $sites;
   }
 
-  public function selectSiteFromList($sites, $params, $options) {
+  public function selectSiteFromList($sites, $set_drush_command, $options) {
     try {
-      if ($sites == NULL) return "drush ";
-      // Printing Site options for user to select.
-      $keys = array_keys($sites);
-      $table = new Table(new ConsoleOutput());
-      $table->setHeaders(['#', 'Site URL', 'Site Name']);
-      foreach ($keys as $index => $key) {
-        // var_dump($index, $option);
-        $value = $sites[$key];
-        $table->addRow([$index + 1, $key, $value]);
-      }
-      $table->render();
-      
-      $selectedOptionIndex = $this->io()->ask('Enter the number of your choice:');
-      $selectedOption = $keys[$selectedOptionIndex - 1];
-      
-      $this->output()->writeln("<info>You selected:</info> $selectedOption");
-      
-      // Input selection received, starting drush command.
-      $param_array = explode(' ', $params);
-      // $command = "drush " . $params;
-      $command = "drush ";
-      foreach ($param_array as $index => $key) {
-        $command .= $key . ' ';
-      }
+      // $sites = NULL;
+      if ($sites == NULL) {
+        $this->output()->writeln("<comment>\nCouldn't find any sites, 
+        Please enter site url to run the given command.</comment>");
+        $user_input_url = $this->io()->ask('Please enter --uri ');
+        $this->output()->writeln("");
 
-      // if --save flag passed, then get url from state session
-      if ($options['save']) {
-        \Drupal::state()->set('persist_url', $selectedOption);
+        // if --save flag passed, then get url from state session
+        if ($options['save']) {
+          \Drupal::state()->set('persist_url', $user_input_url);
+        }
+        $selectedOption = $user_input_url;
+      } else {
+        // Printing Site options for user to select.
+        $keys = array_keys($sites);
+        $table = new Table(new ConsoleOutput());
+        $table->setHeaders(['#', 'Site URL', 'Site Name']);
+        foreach ($keys as $index => $key) {
+          // var_dump($index, $option);
+          $value = $sites[$key];
+          $table->addRow([$index + 1, $key, $value]);
+        }
+        $table->render();
+        
+        $this->output()->writeln("<comment><options=bold;bg=yellow;fg=black>[Note]</> Press Enter to run command on main site.</comment>");
+        $selectedOptionIndex = $this->io()->ask('Enter the number of your choice ');
+        $selectedOption = $keys[$selectedOptionIndex - 1];
+        
+        $this->output()->writeln("<info>You selected:</info> $selectedOption");
+        // if --save flag passed, then get url from state session
+        if ($options['save']) {
+          \Drupal::state()->set('persist_url', $selectedOption);
+        }
       }
       $persist_url = \Drupal::state()->get('persist_url', null);
       if ($persist_url !== NULL){
-        $command .= "--uri=" . $persist_url;
-      } else {
-        $command .= "--uri=" . $selectedOption;
+        $set_drush_command .= " --uri=" . $persist_url;
+      } elseif ($selectedOption !== NULL) {
+        $set_drush_command .= " --uri=" . $selectedOption;
       }
-      return $command;
+      return $set_drush_command;
     } catch (Exception $e) {  
-      $this->output()->write("<error>Error: " . $e->getMessage() . "</error>");
-      return "drush ";
+      $this->output()->write("<error>\nError: " . $e->getMessage() . "</error>");
+      return $set_drush_command;
     }
   }
   
