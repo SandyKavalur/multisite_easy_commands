@@ -64,33 +64,49 @@ class MultiSiteEasyCommands extends DrushCommands {
    *   Use quotes to pass an array of parameters.
    * @option save Key value option description.
    * @option clear Key value option description.
+   * @option opt A comma-separated list of key-value pairs.
+   *   Example: --opt=foo=bar --opt=baz=qux
    * @option opts A comma-separated list of key-value pairs.
    *   Use quotes to pass an array of options.
    *   Example: --opts="uri=https://example.com,foo=bar,baz=qux"
-   * @option opt A comma-separated list of key-value pairs.
-   *   Example: --opt=foo=bar --opt=baz=qux
+   * @option add A comma-separated list of key-value pairs.
+   *   Use quotes and separate url and site name by comma.
+   *   Example: --add="https://example.com,example"
    *
    * @validate-module-enabled multisite_easy_commands
    * @usage mycommand "[<params>]" [--<opt>=<key>=<value>]...
    * @bootstrap full
    */
-  public function multiSiteEasyCommands($params = '', $options = ['opt' => [], 'opts' => '']) {
+  public function multiSiteEasyCommands($params = '', $options = ['opt' => [], 'opts' => '', 'add' => '']) {
     $this->output()->writeln(
-      "<options=bold>\nIf you are using commands like '$' and '-r, -d, -v, etc'. 
+      "<options=bold>\nIf you are using commands and special characters like '$' and '-r, -d, -v, etc'. 
       Please add '\' before '-' and '$'.
       Eg: drush msl '\-r /var/www/html status'</>");
     // drush msl "cr" --opt="uri=http://example.com,foo=bar,baz=qux"
     
+    // // get config data
+    // $value = \Drupal::config('my_module.my_config_item')->get('my_config_value');
+
+    // // set config data
+    // \Drupal::config('my_module.my_config_item')
+    //   ->set('my_config_value', $new_value)
+    //   ->save();
+
+    // Initialising variables
     $optionValues = '';
+    $addSiteUrllist = [];
+    $addSiteNamelist = [];
     
     $params = stripslashes($params);
     $set_drush_command = "drush " . $params;
 
-    if(!empty($options['opts'])){
+    // Processing opts parameter
+    if(!empty($options['opts']) && $options['opts'] !== TRUE){
       $getOptsCmds = explode(',', $options['opts']);
       $options['opt'] = array_merge($options['opt'], $getOptsCmds);
     }
 
+    // Processing opt parameter
     if(!empty($options['opt'])){
       $optionPairs = $options['opt'];
       foreach ($optionPairs as $optionPair) {
@@ -103,6 +119,23 @@ class MultiSiteEasyCommands extends DrushCommands {
       }
     }
 
+    // Processing add parameter
+    if(!empty($options['add']) && $options['add'] !== TRUE){  
+      if (str_contains($options['add'], ',')) {
+        list($addSiteUrl, $addSiteName) = explode(',', $options['add'], 2);
+      } else {
+        $addSiteUrl = $options['add'];
+        $addSiteName = $this->io()->ask('Please enter site name ');  
+      }
+      $addSiteUrllist[$addSiteUrl] = $addSiteName;
+    } else {
+      $addSiteUrl = $this->io()->ask('Please enter --uri ');
+      $addSiteName = $this->io()->ask('Please enter site name ');
+      $addSiteUrllist[$addSiteUrl] = $addSiteName;
+    }
+    // var_dump($addSiteUrllist);die;
+
+    // Fetching config.yml
     // $pathToMyModule = \Drupal::service('extension.list.module')->getPath('multisite_easy_commands');
     $pathToMyModule = drupal_get_path('module', 'multisite_easy_commands');
 
@@ -110,12 +143,12 @@ class MultiSiteEasyCommands extends DrushCommands {
     $sites_copyfile_path = $pathToMyModule . '/fetch_sites.php';
     $config = Yaml::parseFile($config_file_path);
     $my_setting = $config['my_input'];
-    // var_dump($params);die;
     
     // $config = ['my_input' => $params];
     // $yaml = Yaml::dump($config);
     // file_put_contents($pathToMyModule, $yaml);
 
+    // Processing -l and --uri in command
     if (str_contains($params, '-l')) {
       $this->output()->writeln("<comment>\nFound '-l' in command, not modifying command. 
       Please remove it to select from list of sites</comment>");
@@ -125,13 +158,16 @@ class MultiSiteEasyCommands extends DrushCommands {
       Please remove it to select from list of sites</comment>");
       passthru($set_drush_command);
     } else {
+
       // Fetch Sites from sites.php and config data
       $sites = MultiSiteEasyCommands::fetchSites($sites_copyfile_path);
       
+      // Processing clear parameter
       if($options['clear']) {
         \Drupal::state()->delete('persist_url');
       }
 
+      // Processing save parameter
       $persist_url = \Drupal::state()->get('persist_url', null);
       if ($persist_url !== NULL){
         $set_drush_command .= " --uri=" . $persist_url;
@@ -150,6 +186,7 @@ class MultiSiteEasyCommands extends DrushCommands {
   public function fetchSites($sites_copyfile_path) {
     $this->output()->writeln("<comment>\nIf sites present in your root_DIR/sites/sites.php and are not shown here, 
     please check file access permission.</comment>");
+    $sites = NULL;
     $sites_path = DRUPAL_ROOT . '/sites/sites.php';
     if (file_exists($sites_path)) {
       $contents = file_get_contents($sites_path);
