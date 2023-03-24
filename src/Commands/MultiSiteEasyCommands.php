@@ -128,7 +128,7 @@ class MultiSiteEasyCommands extends DrushCommands {
         $addSiteName = $this->io()->ask('Please enter site name ');  
       }
       $addSiteUrllist[$addSiteUrl] = $addSiteName;
-    } else {
+    } elseif (empty($options['add']) && $options['add'] == TRUE) {
       $addSiteUrl = $this->io()->ask('Please enter --uri ');
       $addSiteName = $this->io()->ask('Please enter site name ');
       $addSiteUrllist[$addSiteUrl] = $addSiteName;

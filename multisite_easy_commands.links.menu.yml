@@ -1,0 +1,6 @@
+multisite_easy_commands.admin_settings_form:
+  title: 'MSL module config settings'
+  description: 'MSL config form settings'
+  parent: system.admin_config_system
+  route_name: multisite_easy_commands.admin_settings_form
+  weight: 100

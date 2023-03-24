@@ -1,0 +1,6 @@
+<?php
+
+function multisite_easy_commands_page_attachments(array &$attachments) {
+  // Unconditionally attach the mymodule/lrv library.
+  $attachments['#attached']['library'][] = 'multisite_easy_commands/global';
+}
