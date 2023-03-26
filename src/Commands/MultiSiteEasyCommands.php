@@ -61,16 +61,18 @@ class MultiSiteEasyCommands extends DrushCommands {
    * @command msl
    * @aliases multi-site-list, cce
    * @param string $params A space-separated list of parameters.
-   *   Use quotes to pass an array of parameters.
-   * @option save Key value option description.
-   * @option clear Key value option description.
-   * @option opt A comma-separated list of key-value pairs.
+   *   Use quotes to pass an array of parameters and backslash to escape special characters.
+   *   Example: drush msl "\-r \-l \-v etc..."
+   * @option save Select a site to save(use this site as default).
+   * @option clear Clear the site saved as default.
+   * @option remove Remove the site from config data.
+   * @option opt A key-value pair of drush command.
    *   Example: --opt=foo=bar --opt=baz=qux
    * @option opts A comma-separated list of key-value pairs.
    *   Use quotes to pass an array of options.
    *   Example: --opts="uri=https://example.com,foo=bar,baz=qux"
-   * @option add A comma-separated list of key-value pairs.
-   *   Use quotes and separate url and site name by comma.
+   * @option add A comma-separated list of key-value(site_uri,site_name) pairs.
+   *   Use quotes and separate url and site name by comma. Or just --add.
    *   Example: --add="https://example.com,example"
    *
    * @validate-module-enabled multisite_easy_commands
@@ -79,7 +81,7 @@ class MultiSiteEasyCommands extends DrushCommands {
    */
   public function multiSiteEasyCommands($params = '', $options = ['opt' => [], 'opts' => '', 'add' => '']) {
     $this->output()->writeln(
-      "<options=bold>\nIf you are using commands and special characters like '$' and '-r, -d, -v, etc'. 
+      "<options=bold;bg=cyan;fg=black>\n[Notice]</><options=bold> If you are using commands and special characters like '$' and '-r, -d, -v, etc'. 
       Please add '\' before '-' and '$'.
       Eg: drush msl '\-r /var/www/html status'</>");
     // drush msl "cr" --opt="uri=http://example.com,foo=bar,baz=qux"
@@ -119,20 +121,15 @@ class MultiSiteEasyCommands extends DrushCommands {
       }
     }
 
-    // Processing add parameter
-    if(!empty($options['add']) && $options['add'] !== TRUE){  
-      if (str_contains($options['add'], ',')) {
-        list($addSiteUrl, $addSiteName) = explode(',', $options['add'], 2);
-      } else {
-        $addSiteUrl = $options['add'];
-        $addSiteName = $this->io()->ask('Please enter site name ');  
-      }
-      $addSiteUrllist[$addSiteUrl] = $addSiteName;
-    } elseif (empty($options['add']) && $options['add'] == TRUE) {
-      $addSiteUrl = $this->io()->ask('Please enter --uri ');
-      $addSiteName = $this->io()->ask('Please enter site name ');
-      $addSiteUrllist[$addSiteUrl] = $addSiteName;
+    // Processing remove parameter, if yes removing site from config data.
+    if ($options['remove']){
+      MultiSiteEasyCommands::removeSiteFromConfigData();
+      return;
     }
+
+    // Processing add parameter, if yes adding site to config data.
+    MultiSiteEasyCommands::addNewSiteToConfig($options, FALSE);
+    
     // var_dump($addSiteUrllist);die;
 
     // Fetching config.yml
@@ -161,13 +158,14 @@ class MultiSiteEasyCommands extends DrushCommands {
 
       // Fetch Sites from sites.php and config data
       $sites = MultiSiteEasyCommands::fetchSites($sites_copyfile_path);
+      $sites = array_merge($sites, MultiSiteEasyCommands::fetchSitesFromConfig());
       
       // Processing clear parameter
       if($options['clear']) {
         \Drupal::state()->delete('persist_url');
       }
 
-      // Processing save parameter
+      // Processing save (getting value from persist_url if present) parameter
       $persist_url = \Drupal::state()->get('persist_url', null);
       if ($persist_url !== NULL){
         $set_drush_command .= " --uri=" . $persist_url;
@@ -181,6 +179,73 @@ class MultiSiteEasyCommands extends DrushCommands {
       passthru($set_drush_command);
     }
 
+  }
+
+  public function addNewSiteToConfig($options, $select0 = FALSE) {
+    $config = \Drupal::configFactory()->getEditable('multisite_easy_commands.settings');
+    $addSiteToConfig = $config->get('sites') ?? [];
+
+    if(is_string($options['add']) && $options['add'] !== '' && $options['add'] !== TRUE){  
+      if (str_contains($options['add'], ',')) {
+        list($addSiteUrl, $addSiteName) = explode(',', $options['add'], 2);
+      } else {
+        $addSiteUrl = $options['add'];
+        $addSiteName = $this->io()->ask('Please enter site name ');  
+      }
+      $addSiteToConfig[] = [
+        'url' => $addSiteUrl,
+        'name' => $addSiteName
+      ];
+  
+      $config->set('sites', $addSiteToConfig)->save();
+    } elseif ((is_bool($options['add']) && $options['add'] == TRUE) || $select0 == TRUE) {
+      $addSiteUrl = $this->io()->ask('Please enter --uri ');
+      $addSiteName = $this->io()->ask('Please enter site name ');
+      $addSiteToConfig[] = [
+        'url' => $addSiteUrl,
+        'name' => $addSiteName
+      ];
+      $config->set('sites', $addSiteToConfig)->save();
+    }
+    if(isset($addSiteUrl)){
+      $this->output()->writeln(
+        "<info>\nSuccessfully added <href='$addSiteUrl'>$addSiteUrl</> to the list.</info>");
+    }
+  }
+
+  public function removeSiteFromConfigData() {
+    $config = \Drupal::configFactory()->getEditable('multisite_easy_commands.settings');
+    $removeSiteFromConfig = $config->get('sites') ?? [];
+
+    $keys = array_keys($removeSiteFromConfig);
+    $table = new Table(new ConsoleOutput());
+    $table->setHeaders(['#', 'Site URL', 'Site Name']);
+    foreach ($keys as $index => $key) {
+      // var_dump($index, $option);
+      $configSiteUrl = $removeSiteFromConfig[$key]['url'];
+      $configSiteName = $removeSiteFromConfig[$key]['name'];
+      $table->addRow([$index + 1, $configSiteUrl, $configSiteName]);
+    }
+    $table->render();
+    
+    $selectedOptionIndex = $this->io()->ask('Enter the number of your choice ');
+    $selectedOption = $keys[$selectedOptionIndex - 1];
+
+    unset($removeSiteFromConfig[$selectedOption]);
+    $config->set('sites', $removeSiteFromConfig)->save();
+    
+    $this->output()->writeln("<comment>\nSuccessfully removed site number $selectedOptionIndex.</comment>");
+  }
+
+  public function fetchSitesFromConfig() {
+    $config = \Drupal::config('multisite_easy_commands.settings');
+    // $config->set('sites', NULL)->save();die;
+    $sitesFromConfig = $config->get('sites');
+    $returnSites = [];
+    foreach ($sitesFromConfig as $index => $site) {
+      $returnSites[$site['url']] = $site['name'];
+    }
+    return $returnSites;
   }
 
   public function fetchSites($sites_copyfile_path) {
@@ -222,6 +287,7 @@ class MultiSiteEasyCommands extends DrushCommands {
         $keys = array_keys($sites);
         $table = new Table(new ConsoleOutput());
         $table->setHeaders(['#', 'Site URL', 'Site Name']);
+        $table->addRow(['<options=bold>0</>', '<options=bold>Enter New Site</>']);
         foreach ($keys as $index => $key) {
           // var_dump($index, $option);
           $value = $sites[$key];
@@ -231,9 +297,13 @@ class MultiSiteEasyCommands extends DrushCommands {
         
         $this->output()->writeln("<comment><options=bold;bg=yellow;fg=black>[Note]</> Press Enter to run command on main site.</comment>");
         $selectedOptionIndex = $this->io()->ask('Enter the number of your choice ');
-        $selectedOption = $keys[$selectedOptionIndex - 1];
-        
-        $this->output()->writeln("<info>You selected:</info> $selectedOption");
+        if ($selectedOptionIndex == 0){
+          MultiSiteEasyCommands::addNewSiteToConfig($options, TRUE);
+        } else {
+          $selectedOption = $keys[$selectedOptionIndex - 1];
+          
+          $this->output()->writeln("<info>You selected:</info> $selectedOption");
+        }
         // if --save flag passed, then get url from state session
         if ($options['save']) {
           \Drupal::state()->set('persist_url', $selectedOption);

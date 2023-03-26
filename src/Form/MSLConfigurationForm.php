@@ -29,15 +29,17 @@ class MSLConfigurationForm extends ConfigFormBase {
    */
   public function buildForm(array $form, FormStateInterface $form_state) {
     $config = $this->config('multisite_easy_commands.settings');
-    $names = $config->get('names') ?? [];
+    // $config->set('sites', NULL)->save();die;
+    $sites = $config->get('sites') ?? [];
 
-  $form['names'] = [
+  $form['sites'] = [
     '#type' => 'table',
     '#header' => [
-      $this->t('Name'),
+      $this->t('Site URL'),
+      $this->t('Site Name'),
       $this->t('Delete'),
     ],
-    '#empty' => $this->t('No names added yet.'),
+    '#empty' => $this->t('No sites added yet.'),
     '#tabledrag' => [
       [
         'action' => 'order',
@@ -45,29 +47,39 @@ class MSLConfigurationForm extends ConfigFormBase {
         'group' => 'name-weight',
       ],
     ],
-    '#prefix' => '<div id="names-wrapper">',
+    '#prefix' => '<div id="sites-wrapper">',
     '#suffix' => '</div>',
   ];
 
-  foreach ($names as $key => $name) {
-    $form['names'][$key]['name'] = [
+  foreach ($sites as $key => $site) {
+    $form['sites'][$key]['url'] = [
       '#type' => 'textfield',
-      '#title' => $this->t('Name'),
-      '#default_value' => $name,
+      // '#title' => $this->t('URL'),
+      '#default_value' => $site['url'],
       '#attributes' => [
         'class' => ['name-weight'],
         'data-weight' => $key,
       ],
     ];
 
-    $form['names'][$key]['delete'] = [
+    $form['sites'][$key]['name'] = [
+      '#type' => 'textfield',
+      // '#title' => $this->t('Name'),
+      '#default_value' => $site['name'],
+      '#attributes' => [
+        'class' => ['name-weight'],
+        'data-weight' => $key,
+      ],
+    ];
+
+    $form['sites'][$key]['delete'] = [
       '#type' => 'submit',
       '#value' => $this->t('Delete'),
       '#name' => 'delete_' . $key,
       '#submit' => ['::deleteNameSubmit'],
       '#ajax' => [
         'callback' => '::updateNamesTable',
-        'wrapper' => 'names-wrapper',
+        'wrapper' => 'sites-wrapper',
       ],
     ];
   }
@@ -78,7 +90,7 @@ class MSLConfigurationForm extends ConfigFormBase {
     '#submit' => ['::addMoreNameSubmit'],
     '#ajax' => [
       'callback' => '::updateNamesTable',
-      'wrapper' => 'names-wrapper',
+      'wrapper' => 'sites-wrapper',
     ],
     '#prefix' => '<div>',
     '#suffix' => '</div>',
@@ -100,10 +112,10 @@ class MSLConfigurationForm extends ConfigFormBase {
     // return $form;
   }
   /**
-   * Ajax callback for updating the names table.
+   * Ajax callback for updating the sites table.
    */
   public function updateNamesTable(array &$form, FormStateInterface $form_state) {
-    return $form['names'];
+    return $form['sites'];
   }
 
   /**
@@ -111,11 +123,14 @@ class MSLConfigurationForm extends ConfigFormBase {
    */
   public function addMoreNameSubmit(array &$form, FormStateInterface $form_state) {
     $config = $this->configFactory->getEditable('multisite_easy_commands.settings');
-    $names = $config->get('names') ?? [];
+    $sites = $config->get('sites') ?? [];
 
-    $names[] = '';
+    $sites[] = [
+      'url' => '',
+      'name' => ''
+    ];
 
-    $config->set('names', $names)->save();
+    $config->set('sites', $sites)->save();
 
     $form_state->setRebuild();
   }
@@ -128,200 +143,25 @@ class MSLConfigurationForm extends ConfigFormBase {
     $key = str_replace('delete_', '', $triggering_element['#name']);
 
     $config = $this->configFactory->getEditable('multisite_easy_commands.settings');
-    $names = $config->get('names') ?? [];
+    $sites = $config->get('sites') ?? [];
 
-    unset($names[$key]);
-    $config->set('names', $names)->save();
+    unset($sites[$key]);
+    $config->set('sites', $sites)->save();
 
     $form_state->setRebuild(TRUE);
   }
 
   public function submitForm(array &$form, FormStateInterface $form_state) {
     $values = $form_state->getValues();
-    foreach ($values['names'] as &$subArray) {
+    foreach ($values['sites'] as &$subArray) {
       unset($subArray['delete']);
     }
 
     $config = $this->config('multisite_easy_commands.settings');
-    $config->set('names', array_filter($values['names']))->save();
+    $config->set('sites', array_filter($values['sites']))->save();
 
     // drupal_set_message($this->t('The configuration options have been saved.'));
     $this->messenger()->addMessage('The configuration options have been saved.');
     parent::submitForm($form, $form_state);
   }
-  
-
-
-
-
-  // $form['description'] = [
-  //   '#type' => 'item',
-  //   '#markup' => $this->t('This form is to add site URLs and site names.'),
-  // ];
-
-  // // Gather the number of names in the form already.
-  // $num_names = $form_state->get('num_names');
-  // // We have to ensure that there is at least one name field.
-  // if ($num_names === NULL) {
-  //   $name_field = $form_state->set('num_names', 1);
-  //   $num_names = 1;
-  // }
-
-  // $form['#tree'] = TRUE;
-  // $form['names_fieldset'] = [
-  //   '#type' => 'fieldset',
-  //   '#title' => $this->t('People coming to picnic'),
-  //   '#prefix' => '<div id="names-fieldset-wrapper">',
-  //   '#suffix' => '</div>',
-  // ];
-
-  // $names = $config->get('names_fieldset.name') ?? [];
-
-  // foreach ($names as $i => $name) {
-  //   $form['names_fieldset']['name'][$i] = [
-  //     '#type' => 'textfield',
-  //     '#title' => $this->t('Name'),
-  //     '#default_value' => $name,
-  //     '#attributes' => ['class' => ['site-url-field']],
-  //   ];
-  //   $form['names_fieldset']['delete'][$i] = [
-  //     '#type' => 'submit',
-  //     '#value' => $this->t('Delete'),
-  //     '#attributes' => ['class' => ['delete-url']],
-  //     '#submit' => ['::removeCallback'],
-  //     '#ajax' => [
-  //       'callback' => '::addmoreCallback',
-  //       'wrapper' => 'names-fieldset-wrapper',
-  //     ],
-  //     '#name' => $i,
-  //   ];
-  // }
-
-  // // for ($i = 0; $i < $num_names; $i++) {
-  // //   $name = $config->get('names_fieldset.name.' . $i);
-  // //   $form['names_fieldset']['name'][$i] = [
-  // //     '#type' => 'textfield',
-  // //     '#title' => $this->t('Name'),
-  // //     '#default_value' => $name,
-  // //   ];
-  // // }
-
-  // for ($i = count($names); $i < count($names) + $num_names; $i++) {
-  //   $form['names_fieldset']['name'][$i] = [
-  //     '#type' => 'textfield',
-  //     '#title' => $this->t('Name'),
-  //     '#attributes' => ['class' => ['site-url-field']],
-  //   ];
-  // }
-
-  // $form['names_fieldset']['actions'] = [
-  //   '#type' => 'actions',
-  // ];
-  // $form['names_fieldset']['actions']['add_name'] = [
-  //   '#type' => 'submit',
-  //   '#value' => $this->t('Add one more'),
-  //   '#submit' => ['::addOne'],
-  //   '#ajax' => [
-  //     'callback' => '::addmoreCallback',
-  //     'wrapper' => 'names-fieldset-wrapper',
-  //   ],
-  // ];
-  // $form['actions']['submit'] = [
-  //   '#type' => 'submit',
-  //   '#value' => $this->t('Submit'),
-  // ];
-
-  // return $form;
-
-  // /**
-  //  * Callback for both ajax-enabled buttons.
-  //  *
-  //  * Selects and returns the fieldset with the names in it.
-  //  */
-  // public function addmoreCallback(array &$form, FormStateInterface $form_state) {
-  //   return $form['names_fieldset'];
-  // }
-
-  // /**
-  //  * Submit handler for the "add-one-more" button.
-  //  *
-  //  * Increments the max counter and causes a rebuild.
-  //  */
-  // public function addOne(array &$form, FormStateInterface $form_state) {
-  //   $name_field = $form_state->get('num_names');
-  //   $add_button = $name_field + 1;
-  //   $form_state->set('num_names', $add_button);
-  //   $form_state->setRebuild();
-  // }
-
-  // /**
-  //  * Submit handler for the "remove one" button.
-  //  *
-  //  * Decrements the max counter and causes a form rebuild.
-  //  */
-  // public function removeCallback(array &$form, FormStateInterface $form_state) {
-  //   // $name_field = $form_state->get('num_names');
-  //   // if ($name_field > 1) {
-  //   //   $remove_button = $name_field - 1;
-  //   //   $form_state->set('num_names', $remove_button);
-  //   // }
-  //   $config = $this->configFactory->getEditable('multisite_easy_commands.settings');
-  //   $key = $form_state->getTriggeringElement()['#name'];
-  //   $config->clear("names_fieldset.name.$key");
-  //   $config->save();
-  //   // $form_state->clear("names_fieldset.name.$key");
-  //   $form_state->setValues(array());
-  //   $form_state->set('names_fieldset.name', $config->get('names_fieldset.name'));
-  //   // Rebuild the form to remove the deleted field
-  //   $form_state->setRebuild();
-  // }
-
-  // /**
-  //  * {@inheritdoc}
-  //  */
-  // public function submitForm(array &$form, FormStateInterface $form_state) {
-  //   $config = $this->configFactory->getEditable('multisite_easy_commands.settings');
-  //   $values = $form_state->getValue(['names_fieldset', 'name']);
-  //   $config->set('num_names', count($values));
-
-  //   foreach ($values as $key => $value) {
-  //     $config->set("names_fieldset.name.$key", $value);
-  //   }
-
-  //   $config->save();
-
-  //   $output = $this->t('These people are coming to the picnic: @names', [
-  //     '@names' => implode(', ', $values),
-  //   ]);
-  //   $this->messenger()->addMessage($output);
-  // }
-
 }
-
-    // $form['terms_and_conditions'] = [
-    //   // '#type' => 'textarea',
-    //   '#type' => 'text_format',
-    //   '#title' => 'Shop terms and conditions',
-    //   // '#default_value' => $config->get('terms_and_conditions'),
-    //   '#default_value' => $config->get('terms_and_conditions')['value'],
-    //   '#required' => TRUE,
-    // ];
-
-    // $form['country_of_origin'] = [
-    //   '#type' => 'textfield',
-    //   '#title' => 'Country of all shops origins',
-    //   '#default_value' => $config->get('country_of_origin'),
-    // ];
-
-    // $form['open_shops'] = [
-    //   '#type' => 'checkbox',
-    //   '#title' => 'Shops availability',
-    //   '#default_value' => $config->get('open_shops'),
-    // ];
-
-    // $form['submit'] = [
-    //   '#type' => 'submit',
-    //   '#value' => 'Submit form',
-    // ];
-
-    // return $form;
