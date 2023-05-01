@@ -134,7 +134,9 @@ class MultiSiteEasyCommands extends DrushCommands {
 
     // Fetching config.yml
     // $pathToMyModule = \Drupal::service('extension.list.module')->getPath('multisite_easy_commands');
-    $pathToMyModule = drupal_get_path('module', 'multisite_easy_commands');
+    $module_handler = \Drupal::moduleHandler();
+    $pathToMyModule = $module_handler->getModule('multisite_easy_commands')->getPath();
+    // $pathToMyModule = drupal_get_path('module', 'multisite_easy_commands');
 
     $config_file_path = $pathToMyModule . '/config/install/multisite_easy_commands.config.yml';
     $sites_copyfile_path = $pathToMyModule . '/fetch_sites.php';
