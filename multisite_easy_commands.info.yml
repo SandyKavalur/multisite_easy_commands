@@ -1,5 +1,7 @@
 name: 'Multisite Easy Commands'
 type: module
 description: 'Easy Drush commands to work with multisite.'
-core_version_requirement: ^8 || ^9
-package: 'Custom'
+core_version_requirement: ^9 || ^10
+package: 'Development'
+configure: multisite_easy_commands.admin_settings_form
+version: '1.0'
