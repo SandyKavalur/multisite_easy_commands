@@ -59,7 +59,7 @@ class MultiSiteEasyCommands extends DrushCommands {
    * Custom Drush commands made easy to work with multisite setup.
    *
    * @command msl
-   * @aliases multi-site-list, cce
+   * @aliases multi-site-list
    * @param string $params A space-separated list of parameters.
    *   Use quotes to pass an array of parameters and backslash to escape special characters.
    *   Example: drush msl "\-r \-l \-v etc..."
