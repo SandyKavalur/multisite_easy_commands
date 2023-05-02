@@ -1,8 +1,0 @@
-tools:
-  fin:
-    path: /usr/local/bin/fin
-  lando:
-    path: /usr/local/bin/lando
-  terminus:
-    path: /usr/local/bin/terminus
-my_input: 'yo yo yo'
